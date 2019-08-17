@@ -1,10 +1,12 @@
+#!/usr/bin/env python
+
 import sys
 import os.path
 import glob
 import cv2
 import numpy as np
 import torch
-import architecture as arch
+import RRDBNet_arch as arch
 import argparse
 import warnings
 from pathlib import Path
@@ -30,9 +32,9 @@ def parse_args():
     parser.add_argument(
         "-m",
         "--model",
-        choices=["esrgan", "psnr", "0.8", "0.9"],
+        choices=["esrgan", "psnr", "0.8", "0.9", "manga"],
         default="0.8",
-        help="The model to use for upscaling. Defaults to RRDB_ESRGAN_x4",
+        help="The model to use for upscaling. Defaults to 0.8 (interpolated 0.8 esrgan, 0.2 psnr).",
     )
     parser.add_argument(
         "-d",
@@ -58,27 +60,14 @@ def main():
         "psnr": "RRDB_PSNR_x4.pth",
         "0.8": "interp_08.pth",
         "0.9": "interp_09.pth",
+        "manga": "Manga109Attempt.pth",
     }
     model_path = Path(__file__).resolve().parent / "models" / model_map[args.model]
 
-    model = arch.RRDB_Net(
-        3,
-        3,
-        64,
-        23,
-        gc=32,
-        upscale=4,
-        norm_type=None,
-        act_type="leakyrelu",
-        mode="CNA",
-        res_scale=1,
-        upsample_mode="upconv",
-    )
+    model = arch.RRDBNet(3, 3, 64, 23, gc=32)
     model.load_state_dict(torch.load(str(model_path)), strict=True)
     model.eval()
 
-    for k, v in model.named_parameters():
-        v.requires_grad = False
     model = model.to(device)
 
     for i, path in enumerate(
@@ -100,7 +89,8 @@ def main():
                 img_LR = img.unsqueeze(0)
                 img_LR = img_LR.to(device)
 
-                img = model(img_LR).data.squeeze().float().cpu().clamp_(0, 1).numpy()
+                with torch.no_grad():
+                    img = model(img_LR).data.squeeze().float().cpu().clamp_(0, 1).numpy()
                 img = np.transpose(img[[2, 1, 0], :, :], (1, 2, 0))
 
         img = (img * 255.0).round()
