@@ -1,4 +1,3 @@
-import re
 import glob
 import cv2
 import numpy as np
@@ -8,6 +7,72 @@ import argparse
 import warnings
 from pathlib import Path
 from sys import exit
+
+
+model_docs = {
+    "RRDB_ESRGAN_x4.pth": "Official perceptual upscaling model.",
+    "RRDB_PSNR_x4.pth": "Official PSNR upscaling model.",
+    "4x_interp_08.pth": "RRDB_PSNR_x4 interpolated with RRDB_ESRGAN_x4 with 0.8 strength.",
+    "4x_interp_09.pth": "RRDB_PSNR_x4 interpolated with RRDB_ESRGAN_x4 with 0.9 strength.",
+    "4x_Box.pth": "General purpose upscaling. Larger dataset than RRDB_ESRGAN_x4.",
+    "4x_Misc_220000.pth": "Surface upscaling. Works well as general/manga upscaler too.",
+    "4x_Faces_N_250000.pth": "Face upscaling.",
+    "4x_face_focus_275k.pth": "Face deblurring and upscaling.",
+    "4x_Fatality_01_265000_G.pth": "Upscales pixel art.",
+    "4x_rebout_325k.pth": "Upscales pixel art. Trained on KOF94 Rebout.",
+    "4x_rebout_interp.pth": "Upscales pixel art. Trained on KOF94 Rebout. Interped.",
+    "4x_falcoon300.pth": "Manga upscaling. Removes dithering.",
+    "4x_unholy03.pth": "Manga upscaling. Interpolation of many models.",
+    "4x_WaifuGAN_v3_30000.pth": "Manga upscaling.",
+    "4x_Manga109Attempt.pth": "Manga upscaling.",
+    "4x_ESRGAN_Skyrim_NonTiled_Alpha_NN_128_32_105000.pth": "Upscales greyscale maps. Trained on Skyrim textures.",
+    "4x_detoon_225k.pth": "Tries to make toon images realistic.",
+    "4x_detoon_alt.pth": "Tries to make toon images realistic. Softer version.",
+    "1x_JPEG_00-20.pth": "Cleans up JPEG compression. For images with 0-20%% compression ratio.",
+    "1x_JPEG_20-40.pth": "Cleans up JPEG compression. For images with 20-40%% compression ratio.",
+    "1x_JPEG_40-60.pth": "Cleans up JPEG compression. For images with 40-60%% compression ratio.",
+    "1x_JPEG_60-80.pth": "Cleans up JPEG compression. For images with 60-80%% compression ratio.",
+    "1x_JPEG_80-100.pth": "Cleans up JPEG compression. For images with 80-100%% compression ratio.",
+    "1x_BC1_take2_260850.pth": "Cleans up BC1 compression. Restricted version (only works with low-noise images).",
+    "1x_BC1NoiseAgressiveTake3_400000_G.pth": "Cleans up BC1 compression. Free version (more aggressive than restricted).",
+    "1x_cinepak_200000.pth": "Cleans up Cinepak, msvideo1 and Roq compression.",
+    "1x_DeSharpen.pth": "Removes over-sharpening.",
+    "1x_normals_generator_general_215k.pth": "Attempts to generate a normal map from a texture.",
+    "1x_Alias_200000_G.pth": "Performs anti-aliasing on the image.",
+    "1x_DEDITHER_32_512_126900_G.pth": "Tries to remove dithering patterns.",
+}
+
+
+aliases = {
+    "esrgan": "RRDB_ESRGAN_x4.pth",
+    "psnr": "RRDB_PSNR_x4.pth",
+    "0.8": "4x_interp_08.pth",
+    "0.9": "4x_interp_09.pth",
+    "desharpen": "1x_DeSharpen.pth",
+    "jpeg20": "1x_JPEG_00-20.pth",
+    "jpeg40": "1x_JPEG_20-40.pth",
+    "jpeg60": "1x_JPEG_40-60.pth",
+    "jpeg80": "1x_JPEG_60-80.pth",
+    "jpeg100": "1x_JPEG_80-100.pth",
+    "box": "4x_Box.pth",
+    "misc": "4x_Misc_220000.pth",
+    "facefocus": "4x_face_focus_275k.pth",
+    "face": "4x_Faces_N_250000.pth",
+    "fatality": "4x_Fatality_01_265000_G.pth",
+    "unholy": "4x_unholy03.pth",
+    "waifugan": "4x_WaifuGAN_v3_30000.pth",
+    "manga109": "4x_Manga109Attempt.pth",
+    "falcoon": "4x_falcoon300.pth",
+    "rebout": "4x_rebout_325k.pth",
+    "rebouti": "4x_rebout_interp.pth",
+    "detoon": "4x_detoon_225k.pth",
+    "detoon_alt": "4x_detoon_alt.pth",
+    "bc1r": "1x_BC1_take2_260850.pth",
+    "bc1f": "1x_BC1NoiseAgressiveTake3_400000_G.pth",
+    "aa": "1x_Alias_200000_G.pth",
+    "dedither": "1x_DEDITHER_32_512_126900_G.pth",
+    "alpha": "4x_ESRGAN_Skyrim_NonTiled_Alpha_NN_128_32_105000.pth",
+}
 
 
 class SmartFormatter(argparse.HelpFormatter):
@@ -89,93 +154,55 @@ def parse_args(models, models_help):
 
 def main():
     model_dir = Path(__file__).resolve().parent / "models"
-    aliases = {
-        "esrgan": "RRDB_ESRGAN_x4.pth",
-        "psnr": "RRDB_PSNR_x4.pth",
-        "0.8": "4x_interp_08.pth",
-        "0.9": "4x_interp_09.pth",
-        "desharpen": "1x_DeSharpen.pth",
-        "jpeg20": "1x_JPEG_00-20.pth",
-        "jpeg40": "1x_JPEG_20-40.pth",
-        "jpeg60": "1x_JPEG_40-60.pth",
-        "jpeg80": "1x_JPEG_60-80.pth",
-        "jpeg100": "1x_JPEG_80-100.pth",
-        "box": "4x_Box.pth",
-        "misc": "4x_Misc_220000.pth",
-        "facefocus": "4x_face_focus_275k.pth",
-        "face": "4x_Faces_N_250000.pth",
-        "fatality": "4x_Fatality_01_265000_G.pth",
-        "unholy": "4x_unholy03.pth",
-        "waifugan": "4x_WaifuGAN_v3_30000.pth",
-        "manga109": "4x_Manga109Attempt.pth",
-        "falcoon": "4x_falcoon300.pth",
-        "rebout": "4x_rebout_325k.pth",
-        "rebouti": "4x_rebout_interp.pth",
-        "detoon": "4x_detoon_225k.pth",
-        "detoon_alt": "4x_detoon_alt.pth",
-        "bc1r": "1x_BC1_take2_260850.pth",
-        "bc1f": "1x_BC1NoiseAgressiveTake3_400000_G.pth",
-        "aa": "1x_Alias_200000_G.pth",
-        "dedither": "1x_DEDITHER_32_512_126900_G.pth",
-        "alpha": "4x_ESRGAN_Skyrim_NonTiled_Alpha_NN_128_32_105000.pth",
-    }
-    model_docs = {
-        "RRDB_ESRGAN_x4.pth": "Official perceptual upscaling model.",
-        "RRDB_PSNR_x4.pth": "Official PSNR upscaling model.",
-        "4x_interp_08.pth": "RRDB_PSNR_x4 interpolated with RRDB_ESRGAN_x4 with 0.8 strength.",
-        "4x_interp_09.pth": "RRDB_PSNR_x4 interpolated with RRDB_ESRGAN_x4 with 0.9 strength.",
-        "4x_Box.pth": "General purpose upscaling. Larger dataset than RRDB_ESRGAN_x4.",
-        "4x_Misc_220000.pth": "Surface upscaling. Works well as general/manga upscaler too.",
-        "4x_Faces_N_250000.pth": "Face upscaling.",
-        "4x_face_focus_275k.pth": "Face deblurring and upscaling.",
-        "4x_Fatality_01_265000_G.pth": "Upscales pixel art.",
-        "4x_rebout_325k.pth": "Upscales pixel art. Trained on KOF94 Rebout.",
-        "4x_rebout_interp.pth": "Upscales pixel art. Trained on KOF94 Rebout. Interped.",
-        "4x_falcoon300.pth": "Manga upscaling. Removes dithering.",
-        "4x_unholy03.pth": "Manga upscaling. Interpolation of many models.",
-        "4x_WaifuGAN_v3_30000.pth": "Manga upscaling.",
-        "4x_Manga109Attempt.pth": "Manga upscaling.",
-        "4x_ESRGAN_Skyrim_NonTiled_Alpha_NN_128_32_105000.pth": "Upscales greyscale maps. Trained on Skyrim textures.",
-        "4x_detoon_225k.pth": "Tries to make toon images realistic.",
-        "4x_detoon_alt.pth": "Tries to make toon images realistic. Softer version.",
-        "1x_JPEG_00-20.pth": "Cleans up JPEG compression. For images with 0-20%% compression ratio.",
-        "1x_JPEG_20-40.pth": "Cleans up JPEG compression. For images with 20-40%% compression ratio.",
-        "1x_JPEG_40-60.pth": "Cleans up JPEG compression. For images with 40-60%% compression ratio.",
-        "1x_JPEG_60-80.pth": "Cleans up JPEG compression. For images with 60-80%% compression ratio.",
-        "1x_JPEG_80-100.pth": "Cleans up JPEG compression. For images with 80-100%% compression ratio.",
-        "1x_BC1_take2_260850.pth": "Cleans up BC1 compression. Restricted version (only works with low-noise images).",
-        "1x_BC1NoiseAgressiveTake3_400000_G.pth": "Cleans up BC1 compression. Free version (more aggressive than restricted).",
-        "1x_cinepak_200000.pth": "Cleans up Cinepak, msvideo1 and Roq compression.",
-        "1x_DeSharpen.pth": "Removes over-sharpening.",
-        "1x_normals_generator_general_215k.pth": "Attempts to generate a normal map from a texture.",
-        "1x_Alias_200000_G.pth": "Performs anti-aliasing on the image.",
-        "1x_DEDITHER_32_512_126900_G.pth": "Tries to remove dithering patterns.",
-    }
     models = enum_models(model_dir, aliases)
     models_help = get_models_help(models, aliases, model_docs)
     args = parse_args(models, models_help)
     model_path = model_dir / models[args.model]
 
-    scale_pattern = re.compile('(\d+)x')
-    scale_match = scale_pattern.match(model_path.stem)
-    scale = int(scale_match.group(1)) if scale_match else 4
+    state_dict = torch.load(model_path)
+    if "conv_first.weight" in state_dict:
+        print("Error: Attempted to load a new-format model")
+        return 1
+
+    # Extract model information
+    scale2 = 0
+    max_part = 0
+    in_nc = 3
+    out_nc = 3
+    nf = 64
+    nb = 23
+    for part in list(state_dict):
+        parts = part.split(".")
+        n_parts = len(parts)
+        if n_parts == 5 and parts[2] == "sub":
+            nb = int(parts[3])
+        elif n_parts == 3:
+            part_num = int(parts[1])
+            if part_num > 6 and parts[2] == "weight":
+                scale2 += 1
+            if part_num > max_part:
+                max_part = part_num
+                out_nc = state_dict[part].shape[0]
+    upscale = 2 ** scale2
+    in_nc = state_dict["model.0.weight"].shape[1]
+    nf = state_dict["model.0.weight"].shape[0]
 
     device = torch.device(args.device)
     model = arch.RRDB_Net(
-        3,
-        3,
-        64,
-        23,
+        in_nc,
+        out_nc,
+        nf,
+        nb,
         gc=32,
-        upscale=scale,
+        upscale=upscale,
         norm_type=None,
         act_type="leakyrelu",
         mode="CNA",
         res_scale=1,
         upsample_mode="upconv",
     )
-    state_dict = torch.load(model_path)
     model.load_state_dict(state_dict, strict=True)
+    del state_dict
     model.eval()
 
     for k, v in model.named_parameters():
