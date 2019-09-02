@@ -117,6 +117,7 @@ def main():
         "bc1f": "1x_BC1NoiseAgressiveTake3_400000_G.pth",
         "aa": "1x_Alias_200000_G.pth",
         "dedither": "1x_DEDITHER_32_512_126900_G.pth",
+        "alpha": "4x_ESRGAN_Skyrim_NonTiled_Alpha_NN_128_32_105000.pth",
     }
     model_docs = {
         "RRDB_ESRGAN_x4.pth": "Official perceptual upscaling model.",
