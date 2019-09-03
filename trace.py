@@ -76,24 +76,56 @@ def main():
             continue
 
         print(f"Tracing: {str(model_path)}")
+
+        state_dict = torch.load(model_path)
+        if "conv_first.weight" in state_dict:
+            print("Error: Attempted to load a new-format model")
+            return 1
+
+        # Extract model information
+        scale2 = 0
+        max_part = 0
+        in_nc = 3
+        out_nc = 3
+        nf = 64
+        nb = 23
+        for part in list(state_dict):
+            parts = part.split(".")
+            n_parts = len(parts)
+            if n_parts == 5 and parts[2] == "sub":
+                nb = int(parts[3])
+            elif n_parts == 3:
+                part_num = int(parts[1])
+                if part_num > 6 and parts[2] == "weight":
+                    scale2 += 1
+                if part_num > max_part:
+                    max_part = part_num
+                    out_nc = state_dict[part].shape[0]
+        upscale = 2 ** scale2
+        in_nc = state_dict["model.0.weight"].shape[1]
+        nf = state_dict["model.0.weight"].shape[0]
+
+        device = torch.device(args.device)
         net = arch.RRDB_Net(
-            3,
-            3,
-            64,
-            23,
+            in_nc,
+            out_nc,
+            nf,
+            nb,
             gc=32,
-            upscale=4,
+            upscale=upscale,
             norm_type=None,
             act_type="leakyrelu",
             mode="CNA",
             res_scale=1,
             upsample_mode="upconv",
         )
-        net.load_state_dict(torch.load(model_path), strict=True)
+        net.load_state_dict(state_dict, strict=True)
+        del state_dict
         net.eval()
-        for _, v in net.named_parameters():
+
+        for k, v in net.named_parameters():
             v.requires_grad = False
-        net = net.to(device)
+        model = net.to(device)
 
         with torch.jit.optimized_execution(should_optimize=True):
             traced_script_module = torch.jit.trace(net, img_LR)
