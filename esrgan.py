@@ -28,6 +28,12 @@ model_docs = {
     "4x_ESRGAN_Skyrim_NonTiled_Alpha_NN_128_32_105000.pth": "Upscales greyscale maps. Trained on Skyrim textures.",
     "4x_detoon_225k.pth": "Tries to make toon images realistic.",
     "4x_detoon_alt.pth": "Tries to make toon images realistic. Softer version.",
+    "4x_Lady0101_208000.pth": "Upscaled pixel art to painting style. Original version.",
+    "4x_Lady0101_v3_340000.pth": "Upscaled pixel art to painting style. Moderate blendering, moderate dedithering.",
+    "4x_Lady0101_v3_blender.pth": "Upscaled pixel art to painting style. Heavy blending, low dedithering.",
+    "4x_scalenx_90k.pth": "Upscales pixel art in scalenx style.",
+    "4x_xbrz_90k.pth": "Upscales pixel art in xbr style. No dedithering.",
+    "4x_xbrdd_90k.pth": "Upscales pixel art in xbr style. Dedithering.",
     "1x_JPEG_00-20.pth": "Cleans up JPEG compression. For images with 0-20%% compression ratio.",
     "1x_JPEG_20-40.pth": "Cleans up JPEG compression. For images with 20-40%% compression ratio.",
     "1x_JPEG_40-60.pth": "Cleans up JPEG compression. For images with 40-60%% compression ratio.",
@@ -72,6 +78,12 @@ aliases = {
     "aa": "1x_Alias_200000_G.pth",
     "dedither": "1x_DEDITHER_32_512_126900_G.pth",
     "alpha": "4x_ESRGAN_Skyrim_NonTiled_Alpha_NN_128_32_105000.pth",
+    "ladyold": "4x_Lady0101_208000.pth",
+    "ladyblend": "4x_Lady0101_v3_blender.pth",
+    "lady": "4x_Lady0101_v3_340000.pth",
+    "scalenx": "4x_scalenx_90k.pth",
+    "xbrz": "4x_xbrz_90k.pth",
+    "xbrzdd": "4x_xbrdd_90k.pth",
 }
 
 
@@ -89,14 +101,14 @@ class SmartFormatter(argparse.HelpFormatter):
         return r
 
 
-def enum_models(model_dir, aliases):
+def enum_models(model_dir, aliases=aliases):
     models = {model.name: model for model in model_dir.rglob("*.pth")}
     for alias, original in aliases.items():
         models[alias] = model_dir / original
     return models
 
 
-def get_models_help(models, aliases, model_docs):
+def get_models_help(models, aliases=aliases, model_docs=model_docs):
     lines = []
     for model, docs in model_docs.items():
         if model not in models.keys():
@@ -154,8 +166,8 @@ def parse_args(models, models_help):
 
 def main():
     model_dir = Path(__file__).resolve().parent / "models"
-    models = enum_models(model_dir, aliases)
-    models_help = get_models_help(models, aliases, model_docs)
+    models = enum_models(model_dir)
+    models_help = get_models_help(models)
     args = parse_args(models, models_help)
     model_path = model_dir / models[args.model]
 
