@@ -6,8 +6,13 @@ import architecture as arch
 import argparse
 import warnings
 import time
+import sys
+
+try:
+    import tqdm
+except ImportError:
+    pass
 from pathlib import Path
-from sys import exit
 from chunks import DataChunks
 
 
@@ -175,7 +180,11 @@ def parse_args(models, models_help):
         required=False,
         default=0,
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    assert (
+        args.padding < args.max_dimension
+    ), "padding must be smaller than max-dimension"
+    return args
 
 
 def main():
@@ -213,7 +222,6 @@ def main():
     upscale = 2 ** scale2
     in_nc = state_dict["model.0.weight"].shape[1]
     nf = state_dict["model.0.weight"].shape[0]
-    print(upscale)
 
     if torch.cuda.is_available() and not args.cpu:
         device = torch.device("cuda")
@@ -261,11 +269,14 @@ def main():
 
                 if args.max_dimension:
                     data_chunks = DataChunks(
-                        {"input": img}, args.max_dimension, args.padding, upscale
+                        img, args.max_dimension, args.padding, upscale
                     )
-                    for i, chunk in enumerate(data_chunks.iter()):
-                        print(f"Chunk {i}")
-                        input = chunk["input"].to(device)
+                    chunks = data_chunks.iter()
+                    if "tqdm" in sys.modules.keys():
+                        chunks_count = data_chunks.hlen * data_chunks.vlen
+                        chunks = tqdm.tqdm(chunks, total=chunks_count, unit=" chunks")
+                    for chunk in chunks:
+                        input = chunk.to(device)
                         output = model(input)
                         data_chunks.gather(output)
                     output = data_chunks.concatenate()
@@ -283,9 +294,9 @@ def main():
         cv2.imwrite(str(out_path), img)
 
     period = time.perf_counter_ns() - start
-    print("Done in {:,}s".format(period, period / 1_000_000_000.0))
+    print("Done in {:,}s".format(period / 1_000_000_000.0))
     return 0
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

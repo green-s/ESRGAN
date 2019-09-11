@@ -9,9 +9,7 @@ def range_splits(tensor, split_ranges, dim):
         split_ranges (list(tuples(int,int))): sizes of chunks (start,end).
         dim (int): dimension along which to split the tensor.
     """
-    return tuple(
-        tensor.narrow(int(dim), start, end - start) for start, end in split_ranges
-    )
+    return [tensor.narrow(int(dim), start, end - start) for start, end in split_ranges]
 
 
 def max_dimension_split(tensor, max_dimension, padding, dim):
@@ -22,7 +20,6 @@ def max_dimension_split(tensor, max_dimension, padding, dim):
         max_dimension (int): maximum allowed size for dim.
         dim (int): dimension along which to split the tensor.
     """
-    assert padding < max_dimension
     dimension = tensor.size(dim)
     num_splits = int(dimension / max_dimension) + int(dimension % max_dimension != 0)
     if num_splits == 1:
@@ -83,38 +80,17 @@ class DataChunks(object):
         self.vlen = 0
 
     def iter(self):
-        flatten = lambda l: [item for sublist in l for item in sublist]
-        keys = self.data.keys()
         chunks_dict = {}
-        max_num_chunks = 0
-        for key in keys:
-            if (
-                isinstance(self.data[key], torch.Tensor)
-                and len(self.data[key].shape) > 1
-            ):
-                chunks = max_dimension_split(
-                    self.data[key], self.max_dimension, self.padding, dim=2
-                )
-                chunks_of_chunks = [
-                    max_dimension_split(c, self.max_dimension, self.padding, dim=3)
-                    for c in chunks
-                ]
+        chunks = max_dimension_split(self.data, self.max_dimension, self.padding, dim=2)
+        chunks_of_chunks = [
+            max_dimension_split(c, self.max_dimension, self.padding, dim=3)
+            for c in chunks
+        ]
 
-                self.vlen = len(chunks)
-                self.hlen = len(chunks_of_chunks[0])
+        self.vlen = len(chunks)
+        self.hlen = len(chunks_of_chunks[0])
 
-                # flatten the list
-                chunks_dict[key] = [
-                    item for sublist in chunks_of_chunks for item in sublist
-                ]
-                max_num_chunks = max(max_num_chunks, len(chunks_dict[key]))
-
-        output = {}
-        for key in chunks_dict.keys():
-            for i in range(len(chunks_dict[key])):
-                if isinstance(self.data[key], torch.Tensor):
-                    output[key] = chunks_dict[key][i]
-                yield output
+        return (item for sublist in chunks_of_chunks for item in sublist)
 
     def gather(self, tensor):
         self._chunks.append(tensor)
@@ -122,21 +98,12 @@ class DataChunks(object):
     def clear(self):
         self._chunks = []
 
-    def _concatenate(self, data):
-        horiz_chunks = list(chunks_iter(data, int(len(data) / self.vlen)))
+    def concatenate(self):
+        horiz_chunks = list(
+            chunks_iter(self._chunks, int(len(self._chunks) / self.vlen))
+        )
 
         vert_chunks = [
             cat_chunks(h, self.padding * self.scale, 3) for h in horiz_chunks
         ]
         return cat_chunks(vert_chunks, self.padding * self.scale, 2)  # final tensor
-
-    def concatenate(self):
-        if isinstance(self._chunks[0], dict):
-            ret_data = {}
-            for key in self._chunks[0].keys():
-                chunks_key = [d[key] for d in self._chunks]
-                ret_data[key] = self._concatenate(chunks_key)
-            return ret_data
-        else:
-            return self._concatenate(self._chunks)
-
