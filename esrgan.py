@@ -62,6 +62,7 @@ aliases = {
     "0.8": "4x_interp_08.pth",
     "0.9": "4x_interp_09.pth",
     "desharpen": "1x_DeSharpen.pth",
+    "deblur": "1x_Fatality_DeBlur_275000_G.pth",
     "jpeg20": "1x_JPEG_00-20.pth",
     "jpeg40": "1x_JPEG_20-40.pth",
     "jpeg60": "1x_JPEG_40-60.pth",
