@@ -5,8 +5,10 @@ import torch
 import architecture as arch
 import argparse
 import warnings
+import time
 from pathlib import Path
 from sys import exit
+from chunks import DataChunks
 
 
 model_docs = {
@@ -149,11 +151,7 @@ def parse_args(models, models_help):
         help=f'The model to use for upscaling. Defaults to "0.8" (RRDB_PSNR_x4 - RRDB_ESRGAN_x4 x 0.8 interp).\n{models_help}',
     )
     parser.add_argument(
-        "-d",
-        "--device",
-        default="cuda",
-        choices=["cuda", "cpu"],
-        help="The device to use for upscaling. Defaults to cuda.",
+        "--cpu", help="Use CPU for upscaling, instead of attempting to use CUDA."
     )
     parser.add_argument(
         "-e",
@@ -161,10 +159,27 @@ def parse_args(models, models_help):
         default="_scaled",
         help="The suffix to append to scaled images. Defaults to `_scaled`.",
     )
+    parser.add_argument(
+        "-x",
+        "--max-dimension",
+        help="Split image into chunks of max-dimension.",
+        type=int,
+        required=False,
+        default=0,
+    )
+    parser.add_argument(
+        "-p",
+        "--padding",
+        help="Pad image when splitting into quadrants.",
+        type=int,
+        required=False,
+        default=0,
+    )
     return parser.parse_args()
 
 
 def main():
+    start = time.perf_counter_ns()
     model_dir = Path(__file__).resolve().parent / "models"
     models = enum_models(model_dir)
     models_help = get_models_help(models)
@@ -198,8 +213,13 @@ def main():
     upscale = 2 ** scale2
     in_nc = state_dict["model.0.weight"].shape[1]
     nf = state_dict["model.0.weight"].shape[0]
+    print(upscale)
 
-    device = torch.device(args.device)
+    if torch.cuda.is_available() and not args.cpu:
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
     model = arch.RRDB_Net(
         in_nc,
         out_nc,
@@ -237,10 +257,23 @@ def main():
                 img = torch.from_numpy(
                     np.transpose(img[:, :, [2, 1, 0]], (2, 0, 1))
                 ).float()
-                img_LR = img.unsqueeze(0)
-                img_LR = img_LR.to(device)
+                img = img.unsqueeze(0)
 
-                img = model(img_LR).data.squeeze().float().cpu().clamp_(0, 1).numpy()
+                if args.max_dimension:
+                    data_chunks = DataChunks(
+                        {"input": img}, args.max_dimension, args.padding, upscale
+                    )
+                    for i, chunk in enumerate(data_chunks.iter()):
+                        print(f"Chunk {i}")
+                        input = chunk["input"].to(device)
+                        output = model(input)
+                        data_chunks.gather(output)
+                    output = data_chunks.concatenate()
+                else:
+                    input = img.to(device)
+                    output = model(input)
+
+                img = output.data.squeeze().float().cpu().clamp_(0, 1).numpy()
                 img = np.transpose(img[[2, 1, 0], :, :], (1, 2, 0))
 
         img = (img * 255.0).round()
@@ -249,7 +282,8 @@ def main():
         out_path = out_dir / (path.stem + args.end + ".png")
         cv2.imwrite(str(out_path), img)
 
-    print("Done")
+    period = time.perf_counter_ns() - start
+    print("Done in {:,}s".format(period, period / 1_000_000_000.0))
     return 0
 
 
