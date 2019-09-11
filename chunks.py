@@ -80,7 +80,6 @@ class DataChunks(object):
         self.vlen = 0
 
     def iter(self):
-        chunks_dict = {}
         chunks = max_dimension_split(self.data, self.max_dimension, self.padding, dim=2)
         chunks_of_chunks = [
             max_dimension_split(c, self.max_dimension, self.padding, dim=3)
@@ -102,7 +101,6 @@ class DataChunks(object):
         horiz_chunks = list(
             chunks_iter(self._chunks, int(len(self._chunks) / self.vlen))
         )
-
         vert_chunks = [
             cat_chunks(h, self.padding * self.scale, 3) for h in horiz_chunks
         ]

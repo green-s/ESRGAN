@@ -182,9 +182,14 @@ def parse_args(models, models_help):
         default=0,
     )
     args = parser.parse_args()
-    assert (
-        args.padding < args.max_dimension
-    ), "padding must be smaller than max-dimension"
+    if args.max_dimension != 0 or args.padding != 0:
+        assert (
+            args.padding >= 0 and args.max_dimension >= 0
+        ), "padding and max-dimension must be positive"
+        assert (
+            args.padding < args.max_dimension
+        ), "padding must be smaller than max-dimension"
+
     return args
 
 
