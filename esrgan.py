@@ -157,7 +157,9 @@ def parse_args(models, models_help):
         help=f'The model to use for upscaling. Defaults to "0.8" (RRDB_PSNR_x4 - RRDB_ESRGAN_x4 x 0.8 interp).\n{models_help}',
     )
     parser.add_argument(
-        "--cpu", help="Use CPU for upscaling, instead of attempting to use CUDA."
+        "--cpu",
+        action="store_true",
+        help="Use CPU for upscaling, instead of attempting to use CUDA.",
     )
     parser.add_argument(
         "-e",
