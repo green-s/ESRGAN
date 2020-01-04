@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import glob
 import cv2
 import numpy as np
@@ -97,7 +98,7 @@ aliases = {
 
 class SmartFormatter(argparse.HelpFormatter):
     """
-         Custom Help Formatter used to split help text when '\n' was 
+         Custom Help Formatter used to split help text when '\n' was
          inserted in it.
     """
 
@@ -183,6 +184,13 @@ def parse_args(models, models_help):
         required=False,
         default=0,
     )
+    parser.add_argument(
+        "-t",
+        "--threads",
+        help="Number of CPU threads to use.",
+        type=int,
+        required=False,
+    )
     args = parser.parse_args()
     if args.max_dimension != 0 or args.padding != 0:
         assert (
@@ -191,6 +199,8 @@ def parse_args(models, models_help):
         assert (
             args.padding < args.max_dimension
         ), "padding must be smaller than max-dimension"
+    if args.threads is not None:
+        assert args.threads > 0, "threads must be larger than 0"
 
     return args
 
@@ -230,6 +240,10 @@ def main():
     upscale = 2 ** scale2
     in_nc = state_dict["model.0.weight"].shape[1]
     nf = state_dict["model.0.weight"].shape[0]
+
+    if args.threads is not None and args.threads > 0:
+        torch.set_num_threads(args.threads)
+        torch.set_num_interop_threads(args.threads)
 
     if torch.cuda.is_available() and not args.cpu:
         device = torch.device("cuda")
