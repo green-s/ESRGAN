@@ -47,13 +47,16 @@ model_docs = {
     "1x_JPEG_40-60.pth": "Cleans up JPEG compression. For images with 40-60%% compression ratio.",
     "1x_JPEG_60-80.pth": "Cleans up JPEG compression. For images with 60-80%% compression ratio.",
     "1x_JPEG_80-100.pth": "Cleans up JPEG compression. For images with 80-100%% compression ratio.",
+    "1x_DeJpeg_Fatality_PlusULTRA_200000_G.pth": "Cleans up JPEG compression. Any compression ratio. Increases contrast and sharpness.",
     "1x_BC1_take2_260850.pth": "Cleans up BC1 compression. Restricted version (only works with low-noise images).",
     "1x_BC1NoiseAgressiveTake3_400000_G.pth": "Cleans up BC1 compression. Free version (more aggressive than restricted).",
     "1x_cinepak_200000.pth": "Cleans up Cinepak, msvideo1 and Roq compression.",
     "1x_DeSharpen.pth": "Removes over-sharpening.",
     "1x_normals_generator_general_215k.pth": "Attempts to generate a normal map from a texture.",
     "1x_Alias_200000_G.pth": "Performs anti-aliasing on the image.",
+    "1x_SSAntiAlias9x.pth": "Performs anti-aliasing on the image. Newer.",
     "1x_DEDITHER_32_512_126900_G.pth": "Tries to remove dithering patterns.",
+    "1x_BS_Debandizer_34000G.pth": "Tries to remove banding.",
 }
 
 
@@ -69,6 +72,7 @@ aliases = {
     "jpeg60": "1x_JPEG_40-60.pth",
     "jpeg80": "1x_JPEG_60-80.pth",
     "jpeg100": "1x_JPEG_80-100.pth",
+    "jpegF": "1x_DeJpeg_Fatality_PlusULTRA_200000_G.pth",
     "box": "4x_Box.pth",
     "misc": "4x_Misc_220000.pth",
     "facefocus": "4x_face_focus_275k.pth",
@@ -85,7 +89,9 @@ aliases = {
     "bc1r": "1x_BC1_take2_260850.pth",
     "bc1f": "1x_BC1NoiseAgressiveTake3_400000_G.pth",
     "aa": "1x_Alias_200000_G.pth",
+    "aa2": "1x_SSAntiAlias9x.pth",
     "dedither": "1x_DEDITHER_32_512_126900_G.pth",
+    "deband": "1x_BS_Debandizer_34000G.pth",
     "alpha": "4x_ESRGAN_Skyrim_NonTiled_Alpha_NN_128_32_105000.pth",
     "ladyold": "4x_Lady0101_208000.pth",
     "ladyblend": "4x_Lady0101_v3_blender.pth",
@@ -167,6 +173,12 @@ def parse_args(models, models_help):
         "--end",
         default="_scaled",
         help="The suffix to append to scaled images. Defaults to `_scaled`.",
+    )
+    parser.add_argument(
+        "-a",
+        "--append-model",
+        action="store_true",
+        help="Append the model name to the filename, before any custom suffix.",
     )
     parser.add_argument(
         "-x",
@@ -312,7 +324,8 @@ def main():
         img = (img * 255.0).round()
 
         out_dir = args.out_dir if args.out_dir is not None else path.parent
-        out_path = out_dir / (path.stem + args.end + ".png")
+        suffix = f"_{args.model}{args.end}" if args.append_model else args.end
+        out_path = out_dir / (path.stem + suffix + ".png")
         cv2.imwrite(str(out_path), img)
 
     period = time.perf_counter_ns() - start
