@@ -49,11 +49,7 @@ def main():
     if args.models:
         models = args.models
     else:
-        models = (
-            m
-            for m in model_dir.rglob("*.pt?")
-            if m.suffix in [".pth", ".pt"] and "1x" not in m.stem
-        )
+        models = model_dir.rglob("*.pth")
 
     device = torch.device(args.device)
 
@@ -125,10 +121,11 @@ def main():
 
         for k, v in net.named_parameters():
             v.requires_grad = False
-        model = net.to(device)
+        net = net.to(device)
 
         with torch.jit.optimized_execution(should_optimize=True):
-            traced_script_module = torch.jit.trace(net, img_LR)
+            # traced_script_module = torch.jit.trace(net, img_LR)
+            traced_script_module = torch.jit.script(net)
             print(f"Saving to: {str(out_path)}")
             try:
                 with out_path.open("wb") as out_file:
